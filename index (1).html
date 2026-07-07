@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FMB → UTM → Lat/Lon</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f0f2f5;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      margin: 0;
+      color: #333;
+    }
+    .container {
+      background-color: #fff;
+      padding: 30px;
+      border-radius: 10px;
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+      text-align: center;
+      width: 95%;
+      max-width: 550px;
+    }
+    h2 { margin-bottom: 20px; color: #0056b3; }
+    .input-group { margin-bottom: 20px; text-align: left; }
+    label { display: block; margin-bottom: 8px; font-weight: bold; }
+    input[type="number"] {
+      width: 100%; padding: 12px; box-sizing: border-box;
+      border: 1px solid #ccc; border-radius: 5px; font-size: 16px;
+    }
+    .result-box {
+      margin-top: 15px; padding: 15px; background-color: #e9ecef;
+      border-radius: 5px; border: 1px solid #dee2e6; text-align: left;
+    }
+    .result-box p { margin: 5px 0; font-size: 16px; }
+    .result-box span { font-weight: bold; color: #28a745; }
+    a.map-link { display: inline-block; margin-top: 15px; text-decoration: none; color: #fff; background: #007bff; padding: 10px 15px; border-radius: 5px; }
+    /* Footer credit */
+    .credit {
+      position: fixed;
+      bottom: 10px;
+      right: 15px;
+      font-size: 14px;
+      color: #555;
+      background: rgba(255,255,255,0.8);
+      padding: 5px 10px;
+      border-radius: 6px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <h2>FMB → UTM → Latitude/Longitude</h2>
+  
+  <div class="input-group">
+    <label for="fmbE">FMB EAST VALUE:</label>
+    <input type="number" id="fmbE" oninput="processAll()" placeholder="Enter FMB East">
+  </div>
+  <div class="input-group">
+    <label for="fmbN">FMB NORTH VALUE:</label>
+    <input type="number" id="fmbN" oninput="processAll()" placeholder="Enter FMB North">
+  </div>
+
+  <div class="result-box">
+    <p>UTM EAST: <span id="utmE"></span></p>
+    <p>UTM NORTH: <span id="utmN"></span></p>
+    <hr>
+    <p>Latitude: <span id="lat"></span></p>
+    <p>Longitude: <span id="lon"></span></p>
+    <a id="mapLink" class="map-link" target="_blank">Open in Google Maps</a>
+  </div>
+</div>
+
+<!-- Credit footer -->
+<div class="credit">
+  Muraleedharan P, Ph 9400849115
+</div>
+
+<script>
+  const constEast = 6390781;
+  const constNorth = 2839105;
+
+  function utmToLatLon(easting, northing, zoneNumber=43, northernHemisphere=true) {
+    if (!northernHemisphere) northing -= 10000000.0;
+    const a = 6378137.0;
+    const eccSquared = 0.00669438;
+    const k0 = 0.9996;
+    const e1 = (1 - Math.sqrt(1 - eccSquared)) / (1 + Math.sqrt(1 - eccSquared));
+
+    const x = easting - 500000.0;
+    const y = northing;
+
+    const longOrigin = (zoneNumber - 1) * 6 - 180 + 3;
+    const eccPrimeSquared = eccSquared / (1 - eccSquared);
+
+    const M = y / k0;
+    let mu = M / (a * (1 - eccSquared / 4 - 3 * eccSquared * eccSquared / 64 - 5 * Math.pow(eccSquared,3) / 256));
+
+    let phi1Rad = mu
+      + (3*e1/2 - 27*Math.pow(e1,3)/32) * Math.sin(2*mu)
+      + (21*e1*e1/16 - 55*Math.pow(e1,4)/32) * Math.sin(4*mu)
+      + (151*Math.pow(e1,3)/96) * Math.sin(6*mu);
+    
+    let N1 = a / Math.sqrt(1 - eccSquared * Math.sin(phi1Rad) * Math.sin(phi1Rad));
+    let T1 = Math.tan(phi1Rad) * Math.tan(phi1Rad);
+    let C1 = eccPrimeSquared * Math.cos(phi1Rad) * Math.cos(phi1Rad);
+    let R1 = a * (1 - eccSquared) / Math.pow(1 - eccSquared * Math.sin(phi1Rad) * Math.sin(phi1Rad), 1.5);
+    let D = x / (N1 * k0);
+
+    let lat = phi1Rad - (N1 * Math.tan(phi1Rad) / R1) *
+      (D*D/2 - (5+3*T1+10*C1-4*C1*C1-9*eccPrimeSquared)*Math.pow(D,4)/24
+      + (61+90*T1+298*C1+45*T1*T1-252*eccPrimeSquared-3*C1*C1)*Math.pow(D,6)/720);
+    lat = lat * (180/Math.PI);
+
+    let lon = (D - (1+2*T1+C1)*Math.pow(D,3)/6 + (5-2*C1+28*T1-3*C1*C1+8*eccPrimeSquared+24*T1*T1)*Math.pow(D,5)/120) / Math.cos(phi1Rad);
+    lon = longOrigin + lon * (180/Math.PI);
+
+    return [lat, lon];
+  }
+
+  function processAll() {
+    const fmbE = parseFloat(document.getElementById('fmbE').value);
+    const fmbN = parseFloat(document.getElementById('fmbN').value);
+
+    if (!isNaN(fmbE) && !isNaN(fmbN)) {
+      const utmE = fmbE - constEast;
+      const utmN = fmbN - constNorth;
+
+      document.getElementById('utmE').textContent = utmE;
+      document.getElementById('utmN').textContent = utmN;
+
+      const [lat, lon] = utmToLatLon(utmE, utmN, 43, true);
+      document.getElementById('lat').textContent = lat.toFixed(6);
+      document.getElementById('lon').textContent = lon.toFixed(6);
+
+      document.getElementById('mapLink').href = `https://www.google.com/maps?q=${lat},${lon}`;
+    }
+  }
+</script>
+</body>
+</html>
