@@ -1,145 +1,449 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ml">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>FMB → UTM → Lat/Lon</title>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      background-color: #f0f2f5;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      height: 100vh;
-      margin: 0;
-      color: #333;
-    }
-    .container {
-      background-color: #fff;
-      padding: 30px;
-      border-radius: 10px;
-      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
-      text-align: center;
-      width: 95%;
-      max-width: 550px;
-    }
-    h2 { margin-bottom: 20px; color: #0056b3; }
-    .input-group { margin-bottom: 20px; text-align: left; }
-    label { display: block; margin-bottom: 8px; font-weight: bold; }
-    input[type="number"] {
-      width: 100%; padding: 12px; box-sizing: border-box;
-      border: 1px solid #ccc; border-radius: 5px; font-size: 16px;
-    }
-    .result-box {
-      margin-top: 15px; padding: 15px; background-color: #e9ecef;
-      border-radius: 5px; border: 1px solid #dee2e6; text-align: left;
-    }
-    .result-box p { margin: 5px 0; font-size: 16px; }
-    .result-box span { font-weight: bold; color: #28a745; }
-    a.map-link { display: inline-block; margin-top: 15px; text-decoration: none; color: #fff; background: #007bff; padding: 10px 15px; border-radius: 5px; }
-    /* Footer credit */
-    .credit {
-      position: fixed;
-      bottom: 10px;
-      right: 15px;
-      font-size: 14px;
-      color: #555;
-      background: rgba(255,255,255,0.8);
-      padding: 5px 10px;
-      border-radius: 6px;
-      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-    }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EXIF എഡിറ്റർ &amp; ലൊക്കേഷൻ മാറ്റൽ</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/piexifjs/1.0.6/piexif.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+<style>
+  :root{
+    --primary:#0d6b4f;
+    --primary-dark:#094f3a;
+    --bg:#f4f7f6;
+    --card:#ffffff;
+    --border:#dde5e2;
+    --text:#1f2d27;
+    --muted:#6b7d76;
+  }
+  *{box-sizing:border-box;}
+  body{
+    font-family:"Noto Sans Malayalam","Segoe UI",sans-serif;
+    background:var(--bg);
+    color:var(--text);
+    margin:0;
+    padding:16px;
+  }
+  h1{
+    font-size:1.3rem;
+    color:var(--primary-dark);
+    margin:0 0 4px;
+  }
+  .sub{
+    color:var(--muted);
+    margin-bottom:16px;
+    font-size:.9rem;
+  }
+  .container{
+    max-width:900px;
+    margin:0 auto;
+    display:grid;
+    grid-template-columns:1fr;
+    gap:16px;
+  }
+  @media(min-width:820px){
+    .container{grid-template-columns:1fr 1fr;}
+    .full{grid-column:1/-1;}
+  }
+  .card{
+    background:var(--card);
+    border:1px solid var(--border);
+    border-radius:12px;
+    padding:16px;
+  }
+  .card h2{
+    font-size:1rem;
+    margin:0 0 12px;
+    color:var(--primary-dark);
+    border-bottom:1px solid var(--border);
+    padding-bottom:8px;
+  }
+  .dropzone{
+    border:2px dashed var(--primary);
+    border-radius:10px;
+    padding:30px 12px;
+    text-align:center;
+    color:var(--primary-dark);
+    cursor:pointer;
+    background:#eef7f3;
+  }
+  .dropzone.drag{background:#dcf0e6;}
+  input[type=file]{display:none;}
+  img#preview{
+    max-width:100%;
+    border-radius:8px;
+    margin-top:12px;
+    display:none;
+    border:1px solid var(--border);
+  }
+  label{
+    display:block;
+    font-size:.85rem;
+    color:var(--muted);
+    margin:10px 0 4px;
+  }
+  input[type=text], input[type=number]{
+    width:100%;
+    padding:8px 10px;
+    border:1px solid var(--border);
+    border-radius:8px;
+    font-size:.9rem;
+    font-family:inherit;
+  }
+  #map{
+    height:260px;
+    border-radius:10px;
+    margin-top:10px;
+    border:1px solid var(--border);
+  }
+  .row{
+    display:flex;
+    gap:10px;
+  }
+  .row > div{flex:1;}
+  button{
+    font-family:inherit;
+    border:none;
+    border-radius:8px;
+    padding:10px 14px;
+    font-size:.9rem;
+    cursor:pointer;
+    margin-top:8px;
+  }
+  .btn-primary{background:var(--primary);color:#fff;}
+  .btn-primary:hover{background:var(--primary-dark);}
+  .btn-secondary{background:#eef2f0;color:var(--text);}
+  .btn-danger{background:#fdeceb;color:#b3261e;}
+  .btn-row{display:flex;gap:8px;flex-wrap:wrap;}
+  .status{
+    font-size:.85rem;
+    margin-top:10px;
+    color:var(--muted);
+    min-height:18px;
+  }
+  .status.ok{color:var(--primary-dark);}
+  .status.err{color:#b3261e;}
+  .hint{
+    font-size:.78rem;
+    color:var(--muted);
+    margin-top:6px;
+  }
+  .badge{
+    display:inline-block;
+    font-size:.72rem;
+    background:#eef7f3;
+    color:var(--primary-dark);
+    padding:2px 8px;
+    border-radius:20px;
+    margin-inline-start:6px;
+  }
+</style>
 </head>
 <body>
+
+<h1>📷 EXIF എഡിറ്റർ &amp; ലൊക്കേഷൻ മാറ്റൽ</h1>
+<div class="sub">ഫോട്ടോയുടെ EXIF വിവരങ്ങൾ കാണാം, തിരുത്താം, GPS ലൊക്കേഷൻ മാറ്റാം അല്ലെങ്കിൽ പൂർണ്ണമായി നീക്കാം. എല്ലാം ബ്രൗസറിൽ തന്നെ നടക്കുന്നു — ഫയൽ എവിടെയും അപ്‌ലോഡ് ചെയ്യുന്നില്ല. <b>JPEG (.jpg/.jpeg)</b> ഫയലുകൾക്ക് മാത്രം.</div>
+
 <div class="container">
-  <h2>FMB → UTM → Latitude/Longitude</h2>
-  
-  <div class="input-group">
-    <label for="fmbE">FMB EAST VALUE:</label>
-    <input type="number" id="fmbE" oninput="processAll()" placeholder="Enter FMB East">
-  </div>
-  <div class="input-group">
-    <label for="fmbN">FMB NORTH VALUE:</label>
-    <input type="number" id="fmbN" oninput="processAll()" placeholder="Enter FMB North">
+
+  <div class="card full">
+    <h2>1. ഫോട്ടോ തിരഞ്ഞെടുക്കുക</h2>
+    <div class="dropzone" id="dropzone">
+      ഇവിടെ ക്ലിക്ക് ചെയ്യുക അല്ലെങ്കിൽ ഒരു JPEG ഫോട്ടോ ഇവിടെ ഡ്രോപ്പ് ചെയ്യുക
+      <input type="file" id="fileInput" accept="image/jpeg">
+    </div>
+    <img id="preview">
+    <div class="status" id="loadStatus"></div>
   </div>
 
-  <div class="result-box">
-    <p>UTM EAST: <span id="utmE"></span></p>
-    <p>UTM NORTH: <span id="utmN"></span></p>
-    <hr>
-    <p>Latitude: <span id="lat"></span></p>
-    <p>Longitude: <span id="lon"></span></p>
-    <a id="mapLink" class="map-link" target="_blank">Open in Google Maps</a>
+  <div class="card">
+    <h2>2. ക്യാമറ / ഫയൽ വിവരങ്ങൾ</h2>
+    <label>Make (ക്യാമറ നിർമ്മാതാവ്)</label>
+    <input type="text" id="fMake">
+    <label>Model (മോഡൽ)</label>
+    <input type="text" id="fModel">
+    <label>Software</label>
+    <input type="text" id="fSoftware">
+    <label>Artist / ഫോട്ടോഗ്രാഫർ</label>
+    <input type="text" id="fArtist">
+    <label>Copyright</label>
+    <input type="text" id="fCopyright">
+    <label>DateTime (YYYY:MM:DD HH:MM:SS)</label>
+    <input type="text" id="fDateTime" placeholder="2026:07:07 12:30:00">
   </div>
-</div>
 
-<!-- Credit footer -->
-<div class="credit">
-  Muraleedharan P, Ph 9400849115
+  <div class="card">
+    <h2>3. ലൊക്കേഷൻ (GPS)</h2>
+    <div class="row">
+      <div>
+        <label>Latitude</label>
+        <input type="number" step="0.000001" id="fLat" placeholder="11.176100">
+      </div>
+      <div>
+        <label>Longitude</label>
+        <input type="number" step="0.000001" id="fLng" placeholder="76.230500">
+      </div>
+    </div>
+    <div class="hint">മാപ്പിൽ ക്ലിക്ക് ചെയ്‌താൽ ആ സ്ഥലത്തിന്റെ കോർഡിനേറ്റ് ഇവിടെ വരും. അല്ലെങ്കിൽ അക്കങ്ങൾ നേരിട്ട് ടൈപ്പ് ചെയ്യാം.</div>
+    <div id="map"></div>
+    <div class="btn-row">
+      <button class="btn-secondary" id="btnMyLocation" type="button">📍 എന്റെ ലൊക്കേഷൻ ഉപയോഗിക്കുക</button>
+      <button class="btn-danger" id="btnRemoveGPS" type="button">🗑️ GPS നീക്കം ചെയ്യുക</button>
+    </div>
+  </div>
+
+  <div class="card full">
+    <h2>4. സേവ് ചെയ്യുക</h2>
+    <div class="btn-row">
+      <button class="btn-primary" id="btnSave" type="button">✅ EXIF അപ്ഡേറ്റ് ചെയ്ത് ഡൗൺലോഡ് ചെയ്യുക</button>
+      <button class="btn-danger" id="btnStripAll" type="button">🧹 എല്ലാ EXIF നീക്കി ഡൗൺലോഡ് ചെയ്യുക</button>
+    </div>
+    <div class="status" id="saveStatus"></div>
+  </div>
+
 </div>
 
 <script>
-  const constEast = 6390781;
-  const constNorth = 2839105;
+let currentDataUrl = null;
+let currentExif = null;
+let map, marker;
 
-  function utmToLatLon(easting, northing, zoneNumber=43, northernHemisphere=true) {
-    if (!northernHemisphere) northing -= 10000000.0;
-    const a = 6378137.0;
-    const eccSquared = 0.00669438;
-    const k0 = 0.9996;
-    const e1 = (1 - Math.sqrt(1 - eccSquared)) / (1 + Math.sqrt(1 - eccSquared));
+const $ = id => document.getElementById(id);
 
-    const x = easting - 500000.0;
-    const y = northing;
-
-    const longOrigin = (zoneNumber - 1) * 6 - 180 + 3;
-    const eccPrimeSquared = eccSquared / (1 - eccSquared);
-
-    const M = y / k0;
-    let mu = M / (a * (1 - eccSquared / 4 - 3 * eccSquared * eccSquared / 64 - 5 * Math.pow(eccSquared,3) / 256));
-
-    let phi1Rad = mu
-      + (3*e1/2 - 27*Math.pow(e1,3)/32) * Math.sin(2*mu)
-      + (21*e1*e1/16 - 55*Math.pow(e1,4)/32) * Math.sin(4*mu)
-      + (151*Math.pow(e1,3)/96) * Math.sin(6*mu);
-    
-    let N1 = a / Math.sqrt(1 - eccSquared * Math.sin(phi1Rad) * Math.sin(phi1Rad));
-    let T1 = Math.tan(phi1Rad) * Math.tan(phi1Rad);
-    let C1 = eccPrimeSquared * Math.cos(phi1Rad) * Math.cos(phi1Rad);
-    let R1 = a * (1 - eccSquared) / Math.pow(1 - eccSquared * Math.sin(phi1Rad) * Math.sin(phi1Rad), 1.5);
-    let D = x / (N1 * k0);
-
-    let lat = phi1Rad - (N1 * Math.tan(phi1Rad) / R1) *
-      (D*D/2 - (5+3*T1+10*C1-4*C1*C1-9*eccPrimeSquared)*Math.pow(D,4)/24
-      + (61+90*T1+298*C1+45*T1*T1-252*eccPrimeSquared-3*C1*C1)*Math.pow(D,6)/720);
-    lat = lat * (180/Math.PI);
-
-    let lon = (D - (1+2*T1+C1)*Math.pow(D,3)/6 + (5-2*C1+28*T1-3*C1*C1+8*eccPrimeSquared+24*T1*T1)*Math.pow(D,5)/120) / Math.cos(phi1Rad);
-    lon = longOrigin + lon * (180/Math.PI);
-
-    return [lat, lon];
+// ---------- Map setup ----------
+function initMap(lat, lng){
+  if(map) return;
+  map = L.map('map').setView([lat || 10.85, lng || 76.27], lat ? 13 : 7);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19,
+    attribution: '&copy; OpenStreetMap'
+  }).addTo(map);
+  map.on('click', e => {
+    setLatLng(e.latlng.lat, e.latlng.lng);
+  });
+  if(lat && lng){
+    placeMarker(lat, lng);
   }
+}
 
-  function processAll() {
-    const fmbE = parseFloat(document.getElementById('fmbE').value);
-    const fmbN = parseFloat(document.getElementById('fmbN').value);
+function placeMarker(lat, lng){
+  if(marker){
+    marker.setLatLng([lat, lng]);
+  } else {
+    marker = L.marker([lat, lng], {draggable:true}).addTo(map);
+    marker.on('dragend', () => {
+      const p = marker.getLatLng();
+      setLatLng(p.lat, p.lng, false);
+    });
+  }
+}
 
-    if (!isNaN(fmbE) && !isNaN(fmbN)) {
-      const utmE = fmbE - constEast;
-      const utmN = fmbN - constNorth;
+function setLatLng(lat, lng, moveMap = true){
+  $('fLat').value = lat.toFixed(6);
+  $('fLng').value = lng.toFixed(6);
+  if(!map) initMap(lat, lng);
+  placeMarker(lat, lng);
+  if(moveMap) map.setView([lat, lng], Math.max(map.getZoom(), 13));
+}
 
-      document.getElementById('utmE').textContent = utmE;
-      document.getElementById('utmN').textContent = utmN;
+// ---------- File loading ----------
+const dropzone = $('dropzone');
+const fileInput = $('fileInput');
+dropzone.addEventListener('click', () => fileInput.click());
+dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('drag'); });
+dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag'));
+dropzone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropzone.classList.remove('drag');
+  if(e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+});
+fileInput.addEventListener('change', e => {
+  if(e.target.files.length) handleFile(e.target.files[0]);
+});
 
-      const [lat, lon] = utmToLatLon(utmE, utmN, 43, true);
-      document.getElementById('lat').textContent = lat.toFixed(6);
-      document.getElementById('lon').textContent = lon.toFixed(6);
-
-      document.getElementById('mapLink').href = `https://www.google.com/maps?q=${lat},${lon}`;
+function handleFile(file){
+  const status = $('loadStatus');
+  status.className = 'status';
+  if(!/jpe?g$/i.test(file.name) && file.type !== 'image/jpeg'){
+    status.textContent = '⚠️ JPEG ഫയൽ മാത്രമേ ഇപ്പോൾ പിന്തുണയ്ക്കൂ (.jpg / .jpeg).';
+    status.className = 'status err';
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = ev => {
+    currentDataUrl = ev.target.result;
+    $('preview').src = currentDataUrl;
+    $('preview').style.display = 'block';
+    try{
+      currentExif = piexif.load(currentDataUrl);
+    }catch(err){
+      currentExif = {"0th":{}, "Exif":{}, "GPS":{}, "1st":{}, "thumbnail":null};
     }
+    populateFields();
+    status.textContent = '✅ ഫോട്ടോ ലോഡ് ചെയ്തു. EXIF വിവരങ്ങൾ താഴെ കാണാം.';
+    status.className = 'status ok';
+  };
+  reader.readAsDataURL(file);
+}
+
+function populateFields(){
+  const z = currentExif["0th"] || {};
+  const ex = currentExif["Exif"] || {};
+  const gps = currentExif["GPS"] || {};
+
+  $('fMake').value = z[piexif.ImageIFD.Make] || '';
+  $('fModel').value = z[piexif.ImageIFD.Model] || '';
+  $('fSoftware').value = z[piexif.ImageIFD.Software] || '';
+  $('fArtist').value = z[piexif.ImageIFD.Artist] || '';
+  $('fCopyright').value = z[piexif.ImageIFD.Copyright] || '';
+  $('fDateTime').value = z[piexif.ImageIFD.DateTime] || ex[piexif.ExifIFD.DateTimeOriginal] || '';
+
+  const latLng = gpsToDecimal(gps);
+  if(latLng){
+    initMap(latLng.lat, latLng.lng);
+    setLatLng(latLng.lat, latLng.lng);
+  } else {
+    initMap(10.85, 76.27);
+    $('fLat').value = '';
+    $('fLng').value = '';
   }
+}
+
+function gpsToDecimal(gps){
+  if(!gps || !gps[piexif.GPSIFD.GPSLatitude] || !gps[piexif.GPSIFD.GPSLongitude]) return null;
+  const dmsToDeg = (dms, ref) => {
+    const d = dms[0][0] / dms[0][1];
+    const m = dms[1][0] / dms[1][1];
+    const s = dms[2][0] / dms[2][1];
+    let dec = d + m/60 + s/3600;
+    if(ref === 'S' || ref === 'W') dec = -dec;
+    return dec;
+  };
+  const lat = dmsToDeg(gps[piexif.GPSIFD.GPSLatitude], gps[piexif.GPSIFD.GPSLatitudeRef]);
+  const lng = dmsToDeg(gps[piexif.GPSIFD.GPSLongitude], gps[piexif.GPSIFD.GPSLongitudeRef]);
+  return {lat, lng};
+}
+
+function decToDmsRational(dec){
+  const abs = Math.abs(dec);
+  const d = Math.floor(abs);
+  const minFloat = (abs - d) * 60;
+  const m = Math.floor(minFloat);
+  const s = Math.round((minFloat - m) * 60 * 100);
+  return [[d,1],[m,1],[s,100]];
+}
+
+// ---------- GPS controls ----------
+$('btnMyLocation').addEventListener('click', () => {
+  const status = $('saveStatus');
+  if(!navigator.geolocation){
+    status.textContent = '⚠️ ഈ ബ്രൗസറിൽ ലൊക്കേഷൻ ലഭ്യമല്ല.';
+    status.className = 'status err';
+    return;
+  }
+  navigator.geolocation.getCurrentPosition(pos => {
+    setLatLng(pos.coords.latitude, pos.coords.longitude);
+  }, () => {
+    status.textContent = '⚠️ ലൊക്കേഷൻ ലഭ്യമായില്ല. അനുമതി നൽകിയോ എന്ന് നോക്കുക.';
+    status.className = 'status err';
+  });
+});
+
+$('btnRemoveGPS').addEventListener('click', () => {
+  $('fLat').value = '';
+  $('fLng').value = '';
+  if(marker){ map.removeLayer(marker); marker = null; }
+});
+
+// ---------- Save ----------
+$('btnSave').addEventListener('click', () => {
+  const status = $('saveStatus');
+  if(!currentDataUrl){
+    status.textContent = '⚠️ ആദ്യം ഒരു ഫോട്ടോ ലോഡ് ചെയ്യുക.';
+    status.className = 'status err';
+    return;
+  }
+  try{
+    const zeroth = {};
+    const exifIfd = {};
+    let gpsIfd = {};
+
+    if($('fMake').value) zeroth[piexif.ImageIFD.Make] = $('fMake').value;
+    if($('fModel').value) zeroth[piexif.ImageIFD.Model] = $('fModel').value;
+    if($('fSoftware').value) zeroth[piexif.ImageIFD.Software] = $('fSoftware').value;
+    if($('fArtist').value) zeroth[piexif.ImageIFD.Artist] = $('fArtist').value;
+    if($('fCopyright').value) zeroth[piexif.ImageIFD.Copyright] = $('fCopyright').value;
+    if($('fDateTime').value){
+      zeroth[piexif.ImageIFD.DateTime] = $('fDateTime').value;
+      exifIfd[piexif.ExifIFD.DateTimeOriginal] = $('fDateTime').value;
+    }
+
+    const lat = parseFloat($('fLat').value);
+    const lng = parseFloat($('fLng').value);
+    if(!isNaN(lat) && !isNaN(lng)){
+      gpsIfd = {
+        [piexif.GPSIFD.GPSLatitudeRef]: lat >= 0 ? 'N' : 'S',
+        [piexif.GPSIFD.GPSLatitude]: decToDmsRational(lat),
+        [piexif.GPSIFD.GPSLongitudeRef]: lng >= 0 ? 'E' : 'W',
+        [piexif.GPSIFD.GPSLongitude]: decToDmsRational(lng)
+      };
+    }
+
+    const newExif = {
+      "0th": zeroth,
+      "Exif": exifIfd,
+      "GPS": gpsIfd,
+      "1st": {},
+      "thumbnail": null
+    };
+
+    const exifBytes = piexif.dump(newExif);
+    const newDataUrl = piexif.insert(exifBytes, currentDataUrl);
+    downloadDataUrl(newDataUrl, 'edited_' + timestampName());
+
+    status.textContent = '✅ EXIF അപ്ഡേറ്റ് ചെയ്ത ഫോട്ടോ ഡൗൺലോഡ് ചെയ്തു.';
+    status.className = 'status ok';
+  }catch(err){
+    console.error(err);
+    status.textContent = '❌ പിഴവ്: ' + err.message;
+    status.className = 'status err';
+  }
+});
+
+$('btnStripAll').addEventListener('click', () => {
+  const status = $('saveStatus');
+  if(!currentDataUrl){
+    status.textContent = '⚠️ ആദ്യം ഒരു ഫോട്ടോ ലോഡ് ചെയ്യുക.';
+    status.className = 'status err';
+    return;
+  }
+  try{
+    const stripped = piexif.remove(currentDataUrl);
+    downloadDataUrl(stripped, 'no_exif_' + timestampName());
+    status.textContent = '✅ EXIF ഇല്ലാത്ത ഫോട്ടോ ഡൗൺലോഡ് ചെയ്തു.';
+    status.className = 'status ok';
+  }catch(err){
+    console.error(err);
+    status.textContent = '❌ പിഴവ്: ' + err.message;
+    status.className = 'status err';
+  }
+});
+
+function timestampName(){
+  const d = new Date();
+  const pad = n => String(n).padStart(2,'0');
+  return `${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}.jpg`;
+}
+
+function downloadDataUrl(dataUrl, filename){
+  const a = document.createElement('a');
+  a.href = dataUrl;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+}
 </script>
 </body>
 </html>
