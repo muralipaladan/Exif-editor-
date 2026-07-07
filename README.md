@@ -1,1 +1,1 @@
-https://muralipaladan.github.io/Exif-editor-/
+https://muralipaladan.github.io/Emaps
